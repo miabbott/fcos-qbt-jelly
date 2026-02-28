@@ -7,7 +7,8 @@ a system as a BitTorrent client and Jellyfin media server connected via NordVPN.
 
 - `fcos-qbt-jelly.bu` — Butane YAML source (edit this, never the `.ign` file)
 - `fcos-qbt-jelly.ign` — generated Ignition JSON (do not edit; regenerate via `just`)
-- `Justfile` — automation for transpile, validate, and serve workflows
+- `Justfile` — automation for transpile, validate, serve, stop, write-iso, and clean workflows
+- `.gitignore` — excludes `fcos-qbt-jelly.ign`, `.server.pid`, and downloaded ISO files
 
 ## What This Config Provisions
 
@@ -43,21 +44,29 @@ a system as a BitTorrent client and Jellyfin media server connected via NordVPN.
 Requires: `podman`, `python3`, `just`, `firewall-cmd`
 
 ```
-just          # transpile + validate (default)
-just serve    # transpile + validate + serve .ign over HTTP on port 8000
-just clean    # remove the generated .ign file
+just                       # transpile + validate (default)
+just serve                 # transpile + validate + serve .ign in background on port 8000
+just stop                  # stop the background server and close the firewall port
+just write-iso /dev/sdX    # download latest FCOS live ISO and write to USB key
+just clean                 # remove the generated .ign file and .server.pid
 ```
 
 Transpilation and validation use official containers (`quay.io/coreos/butane:release`
 and `quay.io/coreos/ignition-validate:release`) so no local Butane install is needed.
 
-The `serve` target manages the firewalld port automatically: it opens port 8000/tcp
-if not already open, prints the `coreos-installer` command to run on the target, and
-closes the port again on exit (Ctrl-C).
+The `serve` target starts `python3 -m http.server` in the background, opens firewalld
+port 8000/tcp if not already open, and records the server PID and port state in
+`.server.pid`. Run `just stop` to kill the server and restore firewall state. Server
+logs go to `/tmp/fcos-httpd.log`.
+
+The `write-iso` target uses the `coreos-installer` container to download the latest
+stable Fedora CoreOS live ISO and writes it to the specified block device via `dd`.
+It requires a positional argument (`just write-iso /dev/sdX`) and will prompt for
+confirmation if the target appears to be an internal disk.
 
 ## Installing to the Target System
 
-Boot the target into the stock Fedora CoreOS live ISO, then at the live shell:
+Write the live ISO to a USB key, boot the target from it, then at the live shell:
 
 ```bash
 lsblk   # identify the target disk
@@ -69,8 +78,9 @@ sudo coreos-installer install /dev/sdX \
 sudo reboot
 ```
 
-The `--insecure-ignition` flag is required when serving over plain HTTP. This is
-acceptable for local development; do not use plain HTTP in production.
+`just serve` prints the exact command with the local IP filled in. The
+`--insecure-ignition` flag is required when serving over plain HTTP, which is
+acceptable for local development.
 
 ## Commit Guidelines
 
