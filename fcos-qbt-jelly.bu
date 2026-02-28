@@ -1,0 +1,241 @@
+variant: fcos
+version: 1.7.0
+
+# ============================================================
+# Fedora CoreOS - BitTorrent + Jellyfin + NordVPN
+# ============================================================
+# Services:
+#   - Jellyfin media server (Podman Quadlet, port 8096)
+#   - qBittorrent client   (Podman Quadlet, port 8080)
+#   - NordVPN              (systemd sysext from extensions.fcos.fr)
+#
+# All container data lives under /var (the only writable tree).
+# NordVPN is installed as a sysext rather than via rpm-ostree,
+# keeping the OSTree deployment clean and avoiding a reboot at
+# provisioning time solely for the VPN daemon.
+# ============================================================
+
+passwd:
+  users:
+    - name: core
+      groups:
+        - wheel
+        - nordvpn
+      ssh_authorized_keys:
+        - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIMOuo7lOZH5bi6yPYN2xVYbzq+334ouzWfFBi7XB7DFf miabbott@meatwad
+        - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIA3VMaQAVZOb1UIqA6oIPDoQuzoKUQksIKVFDt88YEvZ miabbott@infidelicious
+        - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEdJ8T7/hRZcqshk9y8pjPO2UmknjFU24pTko3kmiwno miabbott@cheeseburger
+        - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIDwHo8cvXqYs/CMurLvsGSJCpVUSrJdX3WUeNei3+4Kt
+
+storage:
+  directories:
+    # Jellyfin state
+    - path: /var/lib/jellyfin/config
+      mode: 0755
+    - path: /var/lib/jellyfin/cache
+      mode: 0755
+
+    # qBittorrent state
+    - path: /var/lib/qbittorrent/config
+      mode: 0755
+
+    # Shared media and download directories
+    - path: /var/mnt/media/movies
+      mode: 0755
+    - path: /var/mnt/media/tv
+      mode: 0755
+    - path: /var/mnt/media/music
+      mode: 0755
+    - path: /var/mnt/downloads
+      mode: 0755
+
+    # sysext infrastructure directories
+    - path: /var/lib/extensions
+      mode: 0755
+    - path: /var/lib/extensions.d
+      mode: 0755
+    - path: /etc/sysupdate.nordvpn.d
+      mode: 0755
+
+  files:
+    # ----------------------------------------------------------
+    # NordVPN sysext: sysupdate configuration
+    # Fetched from https://extensions.fcos.fr/community/nordvpn.conf
+    # systemd-sysupdate uses this to download and verify the
+    # correct sysext image for the running OS version.
+    # ----------------------------------------------------------
+    - path: /etc/sysupdate.nordvpn.d/nordvpn.conf
+      mode: 0644
+      contents:
+        source: https://extensions.fcos.fr/community/nordvpn.conf
+
+    # ----------------------------------------------------------
+    # Zincati: restrict automatic reboots to a weekend window
+    # ----------------------------------------------------------
+    - path: /etc/zincati/config.d/55-updates-strategy.toml
+      mode: 0644
+      contents:
+        inline: |
+          [updates]
+          strategy = "periodic"
+
+          [[updates.periodic.window]]
+          days = [ "Saturday", "Sunday" ]
+          start_time = "02:00"
+          length_minutes = 90
+
+    # ----------------------------------------------------------
+    # Jellyfin Quadlet container unit
+    # Web UI: http://<host>:8096
+    # Hardware transcoding: Intel Quick Sync via /dev/dri
+    # ----------------------------------------------------------
+    - path: /etc/containers/systemd/jellyfin.container
+      mode: 0644
+      contents:
+        inline: |
+          [Unit]
+          Description=Jellyfin Media Server
+          Wants=network-online.target
+          After=network-online.target
+
+          [Container]
+          ContainerName=jellyfin
+          Image=lscr.io/linuxserver/jellyfin:latest
+          AutoUpdate=registry
+          Environment=PUID=1000
+          Environment=PGID=1000
+          Environment=TZ=America/New_York
+          Volume=/var/lib/jellyfin/config:/config:Z
+          Volume=/var/lib/jellyfin/cache:/cache:Z
+          Volume=/var/mnt/media/movies:/movies:ro,Z
+          Volume=/var/mnt/media/tv:/tv:ro,Z
+          Volume=/var/mnt/media/music:/music:ro,Z
+          PublishPort=8096:8096
+          PublishPort=8920:8920
+          PublishPort=7359:7359/udp
+          PublishPort=1900:1900/udp
+          # Intel Quick Sync hardware transcoding (uncomment if desired)
+          #AddDevice=/dev/dri/renderD128
+
+          [Service]
+          Restart=always
+          TimeoutStartSec=900
+
+          [Install]
+          WantedBy=multi-user.target
+
+    # ----------------------------------------------------------
+    # qBittorrent Quadlet container unit
+    # Web UI: http://<host>:8080
+    # Default credentials are printed in container logs on first
+    # boot; change the password immediately via the web UI.
+    # ----------------------------------------------------------
+    - path: /etc/containers/systemd/qbittorrent.container
+      mode: 0644
+      contents:
+        inline: |
+          [Unit]
+          Description=qBittorrent Torrent Client
+          Wants=network-online.target
+          After=network-online.target
+
+          [Container]
+          ContainerName=qbittorrent
+          Image=lscr.io/linuxserver/qbittorrent:latest
+          AutoUpdate=registry
+          Environment=PUID=1000
+          Environment=PGID=1000
+          Environment=TZ=America/New_York
+          Environment=WEBUI_PORT=8080
+          Environment=TORRENTING_PORT=6881
+          Volume=/var/lib/qbittorrent/config:/config:Z
+          Volume=/var/mnt/downloads:/downloads:Z
+          PublishPort=8080:8080
+          PublishPort=6881:6881
+          PublishPort=6881:6881/udp
+
+          [Service]
+          Restart=always
+          TimeoutStartSec=900
+
+          [Install]
+          WantedBy=multi-user.target
+
+systemd:
+  units:
+    # ----------------------------------------------------------
+    # Enable daily container image auto-update checks.
+    # Containers with AutoUpdate=registry in their Quadlet unit
+    # will be pulled and restarted automatically when a new
+    # image digest is available in the registry.
+    # ----------------------------------------------------------
+    - name: podman-auto-update.timer
+      enabled: true
+
+    # ----------------------------------------------------------
+    # NordVPN sysext: first-boot provisioning service
+    #
+    # This oneshot service runs on first boot to:
+    #   1. Set SELinux contexts on the sysext directories
+    #   2. Download the NordVPN sysext image via systemd-sysupdate
+    #   3. Activate the sysext via systemd-sysext
+    #   4. Create the nordvpn system group
+    #   5. Copy NordVPN data files to /var/lib/nordvpn
+    #   6. Enable and start the nordvpnd socket and service
+    #
+    # The stamp file prevents re-execution on subsequent boots.
+    # After provisioning, log in with: nordvpn login
+    # ----------------------------------------------------------
+    - name: nordvpn-sysext-install.service
+      enabled: true
+      contents: |
+        [Unit]
+        Description=Install NordVPN sysext on first boot
+        Wants=network-online.target systemd-sysext.service
+        After=network-online.target systemd-sysext.service
+        ConditionPathExists=!/var/lib/%N.stamp
+
+        [Service]
+        Type=oneshot
+        RemainAfterExit=yes
+        ExecStart=/bin/restorecon -RFv /var/lib/extensions /var/lib/extensions.d /etc/sysupdate.nordvpn.d
+        ExecStart=/usr/lib/systemd/systemd-sysupdate update --component nordvpn
+        ExecStart=/bin/systemctl restart systemd-sysext.service
+        ExecStart=/usr/sbin/groupadd --system --force nordvpn
+        ExecStart=/bin/cp -a /usr/share/nordvpn /var/lib/
+        ExecStart=/bin/restorecon -RFv /var/lib/nordvpn
+        ExecStart=/bin/systemctl enable --now nordvpnd.socket nordvpnd.service
+        ExecStart=/bin/touch /var/lib/%N.stamp
+
+        [Install]
+        WantedBy=multi-user.target
+
+    # ----------------------------------------------------------
+    # NordVPN sysext: periodic update service
+    # Runs weekly to keep the NordVPN sysext current without
+    # requiring manual intervention or a full OS rebase.
+    # ----------------------------------------------------------
+    - name: nordvpn-sysext-update.service
+      contents: |
+        [Unit]
+        Description=Update NordVPN sysext
+        Wants=network-online.target
+        After=network-online.target
+
+        [Service]
+        Type=oneshot
+        ExecStart=/usr/lib/systemd/systemd-sysupdate update --component nordvpn
+        ExecStart=/bin/systemctl restart systemd-sysext.service nordvpnd.socket nordvpnd.service
+
+    - name: nordvpn-sysext-update.timer
+      enabled: true
+      contents: |
+        [Unit]
+        Description=Weekly NordVPN sysext update
+
+        [Timer]
+        OnCalendar=weekly
+        Persistent=true
+
+        [Install]
+        WantedBy=timers.target
