@@ -7,7 +7,7 @@
 #   just                      # transpile + validate
 #   just serve                # transpile + validate + serve .ign in background
 #   just stop                 # stop the background server and close firewall port
-#   just write-iso DISK=/dev/sdX  # download latest FCOS live ISO and write to USB
+#   just write-iso /dev/sdX       # download latest FCOS live ISO and write to USB
 #   just clean                # remove generated .ign file and server pid file
 # ============================================================
 
@@ -113,22 +113,16 @@ stop:
     echo ">>> Done"
 
 # Download the latest stable Fedora CoreOS live ISO and write it to a USB key.
-# Usage: just write-iso DISK=/dev/sdX
-# The DISK variable must be set — there is no default to avoid accidents.
-write-iso DISK="":
+# Usage: just write-iso /dev/sdX
+write-iso disk:
     #!/usr/bin/env bash
     set -euo pipefail
 
-    if [ -z "{{DISK}}" ]; then
-        echo "ERROR: DISK is required. Usage: just write-iso DISK=/dev/sdX" >&2
-        exit 1
-    fi
-
-    DISK="{{DISK}}"
+    DISK="{{disk}}"
 
     # Refuse to write to an obviously wrong target
     if [ ! -b "${DISK}" ]; then
-        echo "ERROR: ${DISK} is not a block device" >&2
+        echo "ERROR: '${DISK}' is not a block device. Usage: just write-iso /dev/sdX" >&2
         exit 1
     fi
 
