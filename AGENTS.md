@@ -28,7 +28,9 @@ a system as a BitTorrent client and Jellyfin media server connected via NordVPN.
 
 ## Key Constraints
 
-- The Butane spec version is `1.7.0` (Ignition spec `3.6.0`). Do not downgrade.
+- The Butane spec version is `1.6.0` (Ignition spec `3.5.0`). The `quay.io/coreos/butane:release`
+  container (v0.26.0 as of early 2026) does not support `1.7.0` yet; do not upgrade until the
+  container image is verified to support it.
 - All persistent data must live under `/var` — it is the only writable tree on CoreOS.
   The `/etc` tree is writable but is for configuration only, not user data.
 - Volume mounts in Quadlet units must use the `:Z` SELinux relabeling suffix or
