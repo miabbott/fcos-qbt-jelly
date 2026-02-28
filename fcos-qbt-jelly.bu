@@ -227,6 +227,9 @@ systemd:
         ExecStart=/usr/lib/systemd/systemd-sysupdate update --component nordvpn
         ExecStart=/bin/systemctl restart systemd-sysext.service nordvpnd.socket nordvpnd.service
 
+        [Install]
+        WantedBy=multi-user.target
+
     - name: nordvpn-sysext-update.timer
       enabled: true
       contents: |
