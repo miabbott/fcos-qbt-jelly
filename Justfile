@@ -44,9 +44,19 @@ serve: validate
     IGN={{ign_file}}
     PID_FILE={{pid_file}}
 
+    # Stop any previously running server before starting a new one
     if [ -f "${PID_FILE}" ]; then
-        echo "ERROR: server already running (PID $(cat ${PID_FILE})). Run 'just stop' first." >&2
-        exit 1
+        OLD_PID=$(sed -n '1p' "${PID_FILE}")
+        OLD_OPENED=$(sed -n '2p' "${PID_FILE}")
+        if kill "${OLD_PID}" 2>/dev/null; then
+            echo ">>> Stopped previous server (PID ${OLD_PID})"
+        else
+            echo ">>> Previous server (PID ${OLD_PID}) was not running"
+        fi
+        if [ "${OLD_OPENED}" = "true" ]; then
+            sudo firewall-cmd --zone=public --remove-port="${PORT}/tcp" &>/dev/null || true
+        fi
+        rm -f "${PID_FILE}"
     fi
 
     # Determine local IP (first non-loopback address)
