@@ -78,6 +78,10 @@ sudo coreos-installer install /dev/sdX \
 sudo reboot
 ```
 
+After issuing `sudo reboot`, **remove the USB key** before the system comes
+back up. If the USB remains inserted and is first in the BIOS/UEFI boot order,
+the system will boot back into the live environment instead of the installed OS.
+
 `just serve` prints the exact command with the local IP filled in. The
 `--insecure-ignition` flag is required when serving over plain HTTP, which is
 acceptable for local development.
