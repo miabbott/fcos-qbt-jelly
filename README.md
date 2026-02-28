@@ -22,14 +22,29 @@ qBittorrent and Jellyfin behind NordVPN.
 
 ```
 just          # transpile + validate
-just serve    # transpile + validate + serve .ign over HTTP (manages firewalld automatically)
-just clean    # remove generated .ign file
+just serve    # transpile + validate + serve .ign in background (manages firewalld automatically)
+just stop     # stop the background server and close the firewall port
+just clean    # remove generated .ign file and server pid file
 ```
 
 ## Installing to the Target
 
-Boot the target into the [Fedora CoreOS live ISO](https://fedoraproject.org/coreos/download/),
-then from the live shell:
+**Step 1 — Download the live ISO** from the [Fedora CoreOS download page](https://fedoraproject.org/coreos/download/).
+Select the **Bare Metal** platform and download the **Live ISO** image.
+
+**Step 2 — Write the ISO to a USB key** using `dd` (replace `/dev/sdX` with your USB device):
+
+```bash
+sudo dd if=fedora-coreos-<version>-live.x86_64.iso of=/dev/sdX bs=4M status=progress oflag=sync
+```
+
+Alternatively, use a graphical tool such as [Fedora Media Writer](https://flathub.org/apps/org.fedoraproject.MediaWriter).
+
+**Step 3 — Boot the target** from the USB key. Most systems require pressing F11, F12,
+or Del at power-on to select a boot device. The live environment will start automatically
+and drop you into a shell.
+
+**Step 4 — Install** from the live shell:
 
 ```bash
 lsblk   # identify the target disk

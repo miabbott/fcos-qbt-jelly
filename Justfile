@@ -1,13 +1,14 @@
 # ============================================================
 # fcos-qbt-jelly Justfile
 # ============================================================
-# Prerequisites: podman, python3, firewall-cmd
+# Prerequisites: podman, python3, firewall-cmd, coreos-installer
 #
 # Usage:
-#   just          # transpile + validate
-#   just serve    # transpile + validate + serve .ign in background
-#   just stop     # stop the background server and close firewall port
-#   just clean    # remove generated .ign file and server pid file
+#   just                      # transpile + validate
+#   just serve                # transpile + validate + serve .ign in background
+#   just stop                 # stop the background server and close firewall port
+#   just write-iso DISK=/dev/sdX  # download latest FCOS live ISO and write to USB
+#   just clean                # remove generated .ign file and server pid file
 # ============================================================
 
 bu_file  := "fcos-qbt-jelly.bu"
@@ -110,6 +111,51 @@ stop:
 
     rm -f "${PID_FILE}"
     echo ">>> Done"
+
+# Download the latest stable Fedora CoreOS live ISO and write it to a USB key.
+# Usage: just write-iso DISK=/dev/sdX
+# The DISK variable must be set — there is no default to avoid accidents.
+write-iso DISK="":
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    if [ -z "{{DISK}}" ]; then
+        echo "ERROR: DISK is required. Usage: just write-iso DISK=/dev/sdX" >&2
+        exit 1
+    fi
+
+    DISK="{{DISK}}"
+
+    # Refuse to write to an obviously wrong target
+    if [ ! -b "${DISK}" ]; then
+        echo "ERROR: ${DISK} is not a block device" >&2
+        exit 1
+    fi
+
+    # Warn if the target looks like an internal disk (sda/nvme0n1 with no partition suffix)
+    if lsblk -d -o TRAN "${DISK}" 2>/dev/null | grep -qE '^(sata|nvme)$'; then
+        echo "WARNING: ${DISK} appears to be an internal disk ($(lsblk -d -o TRAN "${DISK}" | tail -1))."
+        read -r -p "         Are you sure you want to write to ${DISK}? [y/N] " CONFIRM
+        [[ "${CONFIRM}" =~ ^[Yy]$ ]] || { echo "Aborted."; exit 1; }
+    fi
+
+    echo ">>> Downloading latest stable Fedora CoreOS live ISO..."
+    podman run --pull=always --privileged --rm \
+        -v .:/data -w /data \
+        quay.io/coreos/coreos-installer:release \
+        download --stream stable --platform metal --format iso
+
+    ISO=$(ls -1t fedora-coreos-*-live.x86_64.iso 2>/dev/null | head -1)
+    if [ -z "${ISO}" ]; then
+        echo "ERROR: could not find downloaded ISO" >&2
+        exit 1
+    fi
+
+    echo ">>> Writing ${ISO} to ${DISK}..."
+    sudo dd if="${ISO}" of="${DISK}" bs=4M status=progress oflag=sync
+
+    echo ""
+    echo ">>> Done. You can now boot the target system from ${DISK}."
 
 # Remove generated Ignition JSON and server pid file
 clean:
