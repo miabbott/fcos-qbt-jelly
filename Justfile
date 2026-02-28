@@ -139,7 +139,7 @@ write-iso disk:
         quay.io/coreos/coreos-installer:release \
         download --stream stable --platform metal --format iso
 
-    ISO=$(ls -1t fedora-coreos-*-live.x86_64.iso 2>/dev/null | head -1)
+    ISO=$(ls -1t fedora-coreos-*-live-iso.x86_64.iso 2>/dev/null | head -1)
     if [ -z "${ISO}" ]; then
         echo "ERROR: could not find downloaded ISO" >&2
         exit 1
