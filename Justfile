@@ -182,14 +182,7 @@ set-password password: validate
 
     HASH=$(printf '%s' "{{password}}" | podman run --interactive --rm quay.io/coreos/mkpasswd --method=yescrypt --stdin)
 
-    cat > {{password_bu}} <<BUTANE
-variant: fcos
-version: 1.6.0
-passwd:
-  users:
-    - name: core
-      password_hash: ${HASH}
-BUTANE
+    printf 'variant: fcos\nversion: 1.6.0\npasswd:\n  users:\n    - name: core\n      password_hash: %s\n' "${HASH}" > {{password_bu}}
 
     echo ">>> Transpiling {{password_bu}} -> {{password_ign}}"
     {{butane}} --pretty --strict < {{password_bu}} > {{password_ign}}
