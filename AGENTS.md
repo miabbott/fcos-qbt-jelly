@@ -7,6 +7,9 @@ a system as a BitTorrent client and Jellyfin media server connected via NordVPN.
 
 - `fcos-qbt-jelly.bu` — Butane YAML source (edit this, never the `.ign` file)
 - `fcos-qbt-jelly.ign` — generated Ignition JSON (do not edit; regenerate via `just`)
+- `fcos-qbt-jelly-password.bu` — generated Butane fragment with `core` user password hash (gitignored; produced by `just set-password`)
+- `fcos-qbt-jelly-password.ign` — generated Ignition fragment from the password Butane (gitignored)
+- `fcos-qbt-jelly-final.ign` — combined Ignition config merging main + password configs (gitignored; serve this to `coreos-installer` when a password is needed)
 - `Justfile` — automation for transpile, validate, serve, stop, write-iso, vm-install, vm-clean, and clean workflows
 - `.gitignore` — excludes `fcos-qbt-jelly.ign`, `.server.pid`, and downloaded ISO files
 
@@ -60,13 +63,14 @@ a system as a BitTorrent client and Jellyfin media server connected via NordVPN.
 Requires: `podman`, `python3`, `just`, `firewall-cmd`
 
 ```
-just                       # transpile + validate (default)
-just serve                 # transpile + validate + serve .ign in background on port 8000
-just stop                  # stop the background server and close the firewall port
-just write-iso /dev/sdX    # download latest FCOS live ISO and write to USB key
-just vm-install            # iterate on ignition config using a local libvirt VM
-just vm-clean              # remove cached QCOW2 base image
-just clean                 # remove the generated .ign file and .server.pid
+just                              # transpile + validate (default)
+just serve                        # transpile + validate + serve .ign in background on port 8000
+just stop                         # stop the background server and close the firewall port
+just set-password <password>      # generate combined .ign with core user password set
+just write-iso /dev/sdX           # download latest FCOS live ISO and write to USB key
+just vm-install                   # iterate on ignition config using a local libvirt VM
+just vm-clean                     # remove cached QCOW2 base image
+just clean                        # remove the generated .ign file and .server.pid
 ```
 
 Transpilation and validation use official containers (`quay.io/coreos/butane:release`
@@ -81,6 +85,16 @@ The `write-iso` target uses the `coreos-installer` container to download the lat
 stable Fedora CoreOS live ISO and writes it to the specified block device via `dd`.
 It requires a positional argument (`just write-iso /dev/sdX`) and will prompt for
 confirmation if the target appears to be an internal disk.
+
+The `set-password` target accepts a plaintext password as a positional argument
+(`just set-password mypassword`). It hashes the password using `yescrypt` via
+the `quay.io/coreos/mkpasswd` container, writes a minimal Butane fragment
+(`fcos-qbt-jelly-password.bu`) containing only the `passwd.users` stanza for
+the `core` user, transpiles it to `fcos-qbt-jelly-password.ign`, then merges
+that with the main `fcos-qbt-jelly.ign` using `jq` to produce
+`fcos-qbt-jelly-final.ign`. All three generated files are gitignored. Serve
+`fcos-qbt-jelly-final.ign` to `coreos-installer` in place of the standard
+`.ign` when a console password is required.
 
 The `vm-install` target is used for local iteration against a libvirt VM. It requires
 `virt-install` and `virsh` on the host, and the libvirt `default` network must be
