@@ -56,6 +56,10 @@ storage:
     - path: /etc/sysupdate.nordvpn.d
       mode: 0755
 
+    # Shim directory for libsqlite3.so symlink (see storage.links)
+    - path: /var/lib/nordvpn-shims
+      mode: 0755
+
   links:
     # ----------------------------------------------------------
     # NordVPN sysext: stable name symlink consumed by
@@ -65,6 +69,16 @@ storage:
     # ----------------------------------------------------------
     - path: /var/lib/extensions/nordvpn.raw
       target: /var/lib/extensions.d/nordvpn-4.4.0-1-43-x86-64.raw
+
+    # ----------------------------------------------------------
+    # NordVPN sysext: libsqlite3.so shim
+    # nordvpnd links against the unversioned libsqlite3.so soname,
+    # but FCOS only ships libsqlite3.so.0.  /usr/lib/nordvpn/ is
+    # read-only (sysext overlay), so we provide the symlink from
+    # a writable directory that is included in ld.so.conf.d.
+    # ----------------------------------------------------------
+    - path: /var/lib/nordvpn-shims/libsqlite3.so
+      target: /lib64/libsqlite3.so.0
 
   files:
     # ----------------------------------------------------------
@@ -82,6 +96,24 @@ storage:
       mode: 0644
       contents:
         source: https://extensions.fcos.fr/community/nordvpn/nordvpn-4.4.0-1-43-x86-64.raw
+
+    # ----------------------------------------------------------
+    # NordVPN sysext: linker config for bundled libraries
+    # Since NordVPN 3.19 the package bundles libsqlite3.so and
+    # other libraries under /usr/lib/nordvpn/.  This file tells
+    # ldconfig (run by systemd-ldconfig.service at early boot)
+    # to include that path so nordvpnd can find them.  The sysext
+    # ships a nordvpnd.service.d/librarypath.conf drop-in that
+    # sets LD_LIBRARY_PATH as a belt-and-suspenders fallback, but
+    # the ldconfig entry ensures the linker cache is correct
+    # regardless of service start ordering.
+    # ----------------------------------------------------------
+    - path: /etc/ld.so.conf.d/nordvpn.conf
+      mode: 0644
+      contents:
+        inline: |
+          /usr/lib/nordvpn
+          /var/lib/nordvpn-shims
 
     # ----------------------------------------------------------
     # NordVPN sysext: sysupdate configuration
@@ -237,7 +269,7 @@ systemd:
         ExecStart=/usr/sbin/usermod -aG nordvpn core
         ExecStart=/bin/cp -a /usr/share/nordvpn /var/lib/
         ExecStart=/bin/restorecon -RFv /var/lib/nordvpn
-        ExecStart=/bin/systemctl daemon-reload
+        ExecStart=/sbin/ldconfig
         ExecStart=/bin/systemctl enable --now nordvpnd.socket nordvpnd.service
         ExecStart=/bin/touch /var/lib/%N.stamp
 
