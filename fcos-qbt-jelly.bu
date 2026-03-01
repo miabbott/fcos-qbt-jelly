@@ -237,6 +237,7 @@ systemd:
         ExecStart=/usr/sbin/usermod -aG nordvpn core
         ExecStart=/bin/cp -a /usr/share/nordvpn /var/lib/
         ExecStart=/bin/restorecon -RFv /var/lib/nordvpn
+        ExecStart=/bin/systemctl daemon-reload
         ExecStart=/bin/systemctl enable --now nordvpnd.socket nordvpnd.service
         ExecStart=/bin/touch /var/lib/%N.stamp
 
