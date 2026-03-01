@@ -132,6 +132,13 @@ Follow the project-level commit conventions in `CLAUDE.md` (located at the works
 root). All commits must be signed-off (`git commit -s`) and include the attribution
 trailer `Assisted-by: Claude Code (<model>)`.
 
+## Justfile Validation
+
+After any change to the `Justfile`, run `just --list` to verify that the file
+parses correctly before committing. Just's parser is strict about recipe syntax
+(heredocs, version strings with dots, etc.) and will refuse to run at all if
+parsing fails.
+
 ## Keeping Documentation in Sync
 
 Any change to the `Justfile` must be analyzed for required updates to `README.md`
