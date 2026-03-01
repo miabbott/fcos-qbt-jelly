@@ -284,6 +284,13 @@ vm-clean:
 
 # Remove generated Ignition JSON and server pid file
 clean:
-    @echo ">>> Removing {{ign_file}} and {{pid_file}}"
-    rm -f {{ign_file}} {{pid_file}}
-    @echo ">>> Clean OK"
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    if [ -f "{{pid_file}}" ]; then
+        just stop
+    fi
+
+    echo ">>> Removing {{ign_file}}"
+    rm -f {{ign_file}}
+    echo ">>> Clean OK"
