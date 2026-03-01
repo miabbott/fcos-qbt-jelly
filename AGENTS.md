@@ -7,7 +7,7 @@ a system as a BitTorrent client and Jellyfin media server connected via NordVPN.
 
 - `fcos-qbt-jelly.bu` — Butane YAML source (edit this, never the `.ign` file)
 - `fcos-qbt-jelly.ign` — generated Ignition JSON (do not edit; regenerate via `just`)
-- `Justfile` — automation for transpile, validate, serve, stop, write-iso, and clean workflows
+- `Justfile` — automation for transpile, validate, serve, stop, write-iso, vm-install, vm-clean, and clean workflows
 - `.gitignore` — excludes `fcos-qbt-jelly.ign`, `.server.pid`, and downloaded ISO files
 
 ## What This Config Provisions
@@ -48,6 +48,8 @@ just                       # transpile + validate (default)
 just serve                 # transpile + validate + serve .ign in background on port 8000
 just stop                  # stop the background server and close the firewall port
 just write-iso /dev/sdX    # download latest FCOS live ISO and write to USB key
+just vm-install            # iterate on ignition config using a local libvirt VM
+just vm-clean              # remove cached QCOW2 base image
 just clean                 # remove the generated .ign file and .server.pid
 ```
 
@@ -63,6 +65,14 @@ The `write-iso` target uses the `coreos-installer` container to download the lat
 stable Fedora CoreOS live ISO and writes it to the specified block device via `dd`.
 It requires a positional argument (`just write-iso /dev/sdX`) and will prompt for
 confirmation if the target appears to be an internal disk.
+
+The `vm-install` target is used for local iteration against a libvirt VM. It requires
+`virt-install` and `virsh` on the host, and the libvirt `default` network must be
+active. The target downloads the FCOS QCOW2 image once and caches it as
+`fcos-qbt-jelly-base.qcow2`; subsequent runs reuse the cache. Each run destroys any
+existing VM of the same name, creates a throwaway overlay disk on top of the base
+image, and delivers the Ignition config via the QEMU `fw_cfg` device. Use
+`just vm-clean` to remove the cached base image when a fresh download is needed.
 
 ## Installing to the Target System
 
@@ -91,3 +101,14 @@ acceptable for local development.
 Follow the project-level commit conventions in `CLAUDE.md` (located at the workspace
 root). All commits must be signed-off (`git commit -s`) and include the attribution
 trailer `Assisted-by: Claude Code (<model>)`.
+
+## Keeping Documentation in Sync
+
+Any change to the `Justfile` must be analyzed for required updates to `README.md`
+and `AGENTS.md`. Specifically:
+
+- If a recipe is added, removed, or renamed, update the usage block in both files.
+- If a recipe's behavior, prerequisites, or workflow changes materially, update the
+  prose description in `AGENTS.md` and any relevant steps in `README.md`.
+- README.md and AGENTS.md changes should be committed separately from Justfile
+  changes so each commit remains atomic and focused.

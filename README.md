@@ -25,6 +25,8 @@ just                       # transpile + validate
 just serve                 # transpile + validate + serve .ign in background
 just stop                  # stop the background server and close the firewall port
 just write-iso /dev/sdX    # download latest FCOS live ISO and write to USB key
+just vm-install            # iterate on ignition config using a local libvirt VM
+just vm-clean              # remove cached QCOW2 base image
 just clean                 # remove generated .ign file and server pid file
 ```
 
