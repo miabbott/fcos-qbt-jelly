@@ -56,10 +56,6 @@ storage:
     - path: /etc/sysupdate.nordvpn.d
       mode: 0755
 
-    # Shim directory for libsqlite3.so symlink (see storage.links)
-    - path: /var/lib/nordvpn-shims
-      mode: 0755
-
   links:
     # ----------------------------------------------------------
     # NordVPN sysext: stable name symlink consumed by
@@ -70,23 +66,15 @@ storage:
     - path: /var/lib/extensions/nordvpn.raw
       target: /var/lib/extensions.d/nordvpn-4.4.0-1-43-x86-64.raw
 
-    # ----------------------------------------------------------
-    # NordVPN sysext: libsqlite3.so shim
-    # nordvpnd links against the unversioned libsqlite3.so soname,
-    # but FCOS only ships libsqlite3.so.0.  /usr/lib/nordvpn/ is
-    # read-only (sysext overlay), so we provide the symlink from
-    # a writable directory that is included in ld.so.conf.d.
-    # ----------------------------------------------------------
-    - path: /var/lib/nordvpn-shims/libsqlite3.so
-      target: /lib64/libsqlite3.so.0
-
   files:
     # ----------------------------------------------------------
-    # NordVPN sysext: versioned image downloaded by Ignition at
-    # provision time.  Using Ignition to fetch the image avoids
-    # running systemd-sysupdate as a first-boot service, which
-    # fails on FCOS because the SELinux policy for systemd-importd
-    # is incomplete (extensions.fcos.fr upstream issue).
+    # NordVPN sysext: versioned image fetched at provision time
+    # from a GitHub release asset.  Built from the
+    # nordvpn-libsqlite3-shim branch of fedora-community-sysexts,
+    # which bakes libsqlite3.so -> /lib64/libsqlite3.so.0 into
+    # the sysext's bundled library directory so no host-side shim
+    # is needed.
+    #
     # The weekly nordvpn-sysext-update.service timer uses
     # systemd-sysupdate to replace this file once the system is
     # fully booted, at which point the SELinux constraint does not
@@ -95,7 +83,9 @@ storage:
     - path: /var/lib/extensions.d/nordvpn-4.4.0-1-43-x86-64.raw
       mode: 0644
       contents:
-        source: https://extensions.fcos.fr/community/nordvpn/nordvpn-4.4.0-1-43-x86-64.raw
+        source: https://github.com/miabbott/fedora-community-sysexts/releases/download/nordvpn-4.4.0-1-43-x86-64-libsqlite3-shim/nordvpn-4.4.0-1-43-x86-64.raw
+        verification:
+          hash: sha256-ce84ac913968a906e5737d80258a3d7e65401053ff98c50e36e80876bfac073a
 
     # ----------------------------------------------------------
     # NordVPN sysext: linker config for bundled libraries
@@ -106,14 +96,16 @@ storage:
     # ships a nordvpnd.service.d/librarypath.conf drop-in that
     # sets LD_LIBRARY_PATH as a belt-and-suspenders fallback, but
     # the ldconfig entry ensures the linker cache is correct
-    # regardless of service start ordering.
+    # regardless of service start ordering.  The libsqlite3.so
+    # shim symlink is baked into the sysext itself under
+    # /usr/lib/nordvpn/, so no separate host shim directory is
+    # needed.
     # ----------------------------------------------------------
     - path: /etc/ld.so.conf.d/nordvpn.conf
       mode: 0644
       contents:
         inline: |
           /usr/lib/nordvpn
-          /var/lib/nordvpn-shims
 
     # ----------------------------------------------------------
     # NordVPN sysext: sysupdate configuration
