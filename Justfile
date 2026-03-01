@@ -21,12 +21,9 @@ butane   := "podman run --interactive --rm quay.io/coreos/butane:release"
 validate := "podman run --pull=always --rm --interactive quay.io/coreos/ignition-validate:release"
 
 # VM iteration settings
-vm_name   := "fcos-qbt-jelly"
-vm_disk   := "fcos-qbt-jelly-vm.qcow2"
-vm_disk_gb := "20"
-# Host IP on the libvirt default network (virbr0); reachable from the VM without
-# any firewall changes since libvirt manages its own bridge rules.
-vm_host_ip := "192.168.122.1"
+vm_name       := "fcos-qbt-jelly"
+vm_base_image := "fcos-qbt-jelly-base.qcow2"
+vm_overlay    := "/var/lib/libvirt/images/fcos-qbt-jelly-overlay.qcow2"
 
 # Default: transpile and validate
 default: validate
