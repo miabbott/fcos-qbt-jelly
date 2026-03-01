@@ -170,61 +170,37 @@ write-iso disk:
 # Boot a local libvirt VM with the generated Ignition config for iterative testing.
 #
 # Each run is a clean slate: any existing VM named {{vm_name}} is destroyed and
-# its disk image deleted before a fresh install begins.
+# its disk removed from the default libvirt pool before a fresh VM is defined.
 #
-# The live ISO is downloaded once and cached in the working directory; subsequent
-# runs reuse it.  The VM installs FCOS to a scratch qcow2 disk, then reboots into
-# the installed OS.  A virsh console session is attached so you can watch the
-# install and first-boot output in real time.
+# The QCOW2 base image is downloaded once and cached in the working directory;
+# subsequent runs reuse it.  libvirt creates a disposable overlay on top of the
+# base image via --disk backing_store so the cached image is never modified.
+# The Ignition config is passed directly via the QEMU fw_cfg device — no ISO
+# customization step is required.
 #
-# Prerequisites (host): virt-install, virsh, qemu-img
-# Libvirt network: 'default' (virbr0) must be active; host is at {{vm_host_ip}}.
+# Prerequisites (host): virt-install, virsh, podman
+# Libvirt network: 'default' (virbr0) must be active.
 vm-install: validate
     #!/usr/bin/env bash
     set -euo pipefail
 
     VM_NAME={{vm_name}}
-    VM_DISK={{vm_disk}}
-    VM_DISK_GB={{vm_disk_gb}}
-    IGN={{ign_file}}
-    PORT={{http_port}}
-    PID_FILE={{pid_file}}
-    HOST_IP={{vm_host_ip}}
-    IGN_URL="http://${HOST_IP}:${PORT}/${IGN}"
-
-    # ----------------------------------------------------------------
-    # Helpers
-    # ----------------------------------------------------------------
-    stop_server() {
-        if [ -f "${PID_FILE}" ]; then
-            local pid opened
-            pid=$(sed -n '1p' "${PID_FILE}")
-            opened=$(sed -n '2p' "${PID_FILE}")
-            if kill "${pid}" 2>/dev/null; then
-                echo ">>> Stopped HTTP server (PID ${pid})"
-            fi
-            # The libvirt bridge does not require a host firewall rule, so
-            # OPENED_PORT will always be 'false' in vm-install, but handle it
-            # defensively in case the server was started by 'just serve'.
-            if [ "${opened}" = "true" ]; then
-                sudo firewall-cmd --zone=public --remove-port="${PORT}/tcp" &>/dev/null || true
-            fi
-            rm -f "${PID_FILE}"
-        fi
-    }
+    BASE_IMAGE={{vm_base_image}}
+    OVERLAY={{vm_overlay}}
+    IGN="$(pwd)/{{ign_file}}"
 
     # ----------------------------------------------------------------
     # Verify prerequisites
     # ----------------------------------------------------------------
-    for cmd in virt-install virsh qemu-img; do
+    for cmd in virt-install virsh; do
         if ! command -v "${cmd}" &>/dev/null; then
-            echo "ERROR: '${cmd}' not found. Install virt-install / libvirt / qemu-img." >&2
+            echo "ERROR: '${cmd}' not found. Install virt-install / libvirt." >&2
             exit 1
         fi
     done
 
     # Ensure the libvirt default network is active
-    if ! virsh net-info default 2>/dev/null | grep -q "Active:.*yes"; then
+    if ! virsh net-list --all 2>/dev/null | awk 'NR>2 && $1=="default" {exit ($2=="active" ? 0 : 1)}'; then
         echo ">>> Starting libvirt 'default' network..."
         virsh net-start default
     fi
@@ -237,85 +213,67 @@ vm-install: validate
         virsh destroy "${VM_NAME}" 2>/dev/null || true
         virsh undefine "${VM_NAME}" --remove-all-storage 2>/dev/null || true
     fi
-    # Also remove the scratch disk in case it was created outside virsh
-    if [ -f "${VM_DISK}" ]; then
-        echo ">>> Removing leftover disk image ${VM_DISK}..."
-        rm -f "${VM_DISK}"
-    fi
+    # Remove any leftover overlay not managed by virsh
+    sudo rm -f "${OVERLAY}"
 
     # ----------------------------------------------------------------
-    # Download the live ISO (cached across runs)
+    # Download the QCOW2 base image (cached across runs)
     # ----------------------------------------------------------------
-    ISO=$(ls -1t fedora-coreos-*-live.x86_64.iso 2>/dev/null | head -1 || true)
-    if [ -z "${ISO}" ]; then
-        echo ">>> No cached ISO found — downloading latest stable Fedora CoreOS live ISO..."
+    if [ -f "${BASE_IMAGE}" ]; then
+        echo ">>> Using cached base image: ${BASE_IMAGE}"
+    else
+        echo ">>> No cached base image found — downloading latest stable Fedora CoreOS QCOW2..."
         podman run --pull=always --privileged --rm \
             -v .:/data -w /data \
             quay.io/coreos/coreos-installer:release \
-            download --stream stable --platform metal --format iso
-        ISO=$(ls -1t fedora-coreos-*-live.x86_64.iso 2>/dev/null | head -1)
-        if [ -z "${ISO}" ]; then
-            echo "ERROR: ISO download succeeded but file not found." >&2
+            download --stream stable --platform qemu --format qcow2.xz --decompress
+        DOWNLOADED=$(ls -1t fedora-coreos-*-qemu.x86_64.qcow2 2>/dev/null | head -1 || true)
+        if [ -z "${DOWNLOADED}" ]; then
+            echo "ERROR: QCOW2 download succeeded but file not found." >&2
             exit 1
         fi
-        echo ">>> Downloaded: ${ISO}"
-    else
-        echo ">>> Using cached ISO: ${ISO}"
+        mv "${DOWNLOADED}" "${BASE_IMAGE}"
+        echo ">>> Downloaded and cached as: ${BASE_IMAGE}"
     fi
-    ISO_PATH="$(pwd)/${ISO}"
+    BASE_IMAGE_PATH="$(pwd)/${BASE_IMAGE}"
 
     # ----------------------------------------------------------------
-    # Create the scratch disk image
+    # Apply SELinux label so libvirt/QEMU can read the Ignition config
     # ----------------------------------------------------------------
-    echo ">>> Creating ${VM_DISK_GB} GiB scratch disk: ${VM_DISK}"
-    qemu-img create -f qcow2 "${VM_DISK}" "${VM_DISK_GB}G"
-    DISK_PATH="$(pwd)/${VM_DISK}"
-
-    # ----------------------------------------------------------------
-    # Start the HTTP server (bound to all interfaces so virbr0 can reach it)
-    # ----------------------------------------------------------------
-    stop_server  # clean up any stale server first
-    trap stop_server EXIT
-
-    echo ">>> Starting HTTP server on port ${PORT}..."
-    python3 -m http.server "${PORT}" &>/tmp/fcos-httpd.log &
-    echo "$!" > "${PID_FILE}"
-    echo "false" >> "${PID_FILE}"   # we did not open a firewall port
-    echo ">>> Ignition URL: ${IGN_URL}"
+    chcon --type svirt_home_t "${IGN}"
 
     # ----------------------------------------------------------------
     # Define and start the VM
     #
-    # The live ISO kernel is passed coreos.inst.* arguments via --extra-args
-    # so the live environment performs an unattended install and reboots.
-    # --noautoconsole lets virt-install return immediately after defining
-    # the domain; we then attach virsh console ourselves so the trap fires
-    # correctly when the console session ends.
+    # --import boots directly from the QCOW2 base image; no installer
+    # step is needed.  --disk backing_store= tells libvirt to create a
+    # throwaway overlay on top of the base image — the base is never
+    # modified.  The Ignition config is delivered via the QEMU fw_cfg
+    # device, which is the mechanism FCOS expects on the qemu platform.
+    # --noautoconsole lets virt-install return immediately; we then
+    # attach virsh console ourselves.
     # ----------------------------------------------------------------
     echo ">>> Launching VM '${VM_NAME}'..."
     virt-install \
+        --connect qemu:///system \
         --name "${VM_NAME}" \
         --ram 4096 \
         --vcpus 2 \
         --os-variant fedora-coreos-stable \
-        --disk "path=${DISK_PATH},format=qcow2,bus=virtio" \
-        --cdrom "${ISO_PATH}" \
+        --import \
+        --disk "path=${OVERLAY},backing_store=${BASE_IMAGE_PATH},bus=virtio,size=20" \
         --network network=default \
         --graphics none \
         --console pty,target_type=serial \
-        --extra-args "console=ttyS0,115200n8 coreos.inst.install_dev=/dev/vda coreos.inst.ignition_url=${IGN_URL} coreos.inst.insecure" \
         --noautoconsole \
-        --boot cdrom,hd
+        --qemu-commandline="-fw_cfg name=opt/com.coreos/config,file=${IGN}"
 
     echo ""
-    echo ">>> VM is installing. Attaching console (Ctrl-] to detach)..."
-    echo ">>> After the install reboots, FCOS will apply your Ignition config."
+    echo ">>> VM booting. Attaching console (Ctrl-] to detach)..."
     echo ">>> SSH in with: ssh core@\$(virsh domifaddr ${VM_NAME} | awk '/ipv4/{print \$4}' | cut -d/ -f1)"
     echo ""
 
     virsh console "${VM_NAME}"
-
-    # trap fires here — HTTP server is stopped
 
 # Remove generated Ignition JSON and server pid file
 clean:
