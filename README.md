@@ -21,14 +21,13 @@ qBittorrent and Jellyfin behind NordVPN.
 ## Usage
 
 ```
-just                              # transpile + validate
-just serve                        # transpile + validate + serve .ign in background
-just stop                         # stop the background server and close the firewall port
-just set-password <password>      # generate combined .ign with core user password set
-just write-iso /dev/sdX           # download latest FCOS live ISO and write to USB key
-just vm-install                   # iterate on ignition config using a local libvirt VM
-just vm-clean                     # remove cached QCOW2 base image
-just clean                        # remove generated .ign file and server pid file
+just                       # transpile + validate
+just serve                 # transpile + validate + serve .ign in background
+just stop                  # stop the background server and close the firewall port
+just write-iso /dev/sdX    # download latest FCOS live ISO and write to USB key
+just vm-install            # iterate on ignition config using a local libvirt VM
+just vm-clean              # remove cached QCOW2 base image
+just clean                 # remove generated .ign file and server pid file
 ```
 
 ## Installing to the Target
@@ -48,14 +47,10 @@ with a graphical tool such as [Fedora Media Writer](https://flathub.org/apps/org
 or Del at power-on to select a boot device. The live environment will start automatically
 and drop you into a shell.
 
-**Step 3 — Generate the Ignition config** from your dev machine. If you want a
-password set for the `core` user, use `set-password` to produce a combined config:
+**Step 3 — Start serving the Ignition config** from your dev machine:
 
 ```bash
-just serve                        # serves fcos-qbt-jelly.ign (no password)
-# or
-just set-password <password>      # produces fcos-qbt-jelly-final.ign, then:
-just serve                        # serve directory; use the final.ign URL below
+just serve
 ```
 
 **Step 4 — Install** from the live shell:
@@ -63,14 +58,8 @@ just serve                        # serve directory; use the final.ign URL below
 ```bash
 lsblk   # identify the target disk
 
-# Without password:
 sudo coreos-installer install /dev/sdX \
   --ignition-url http://<dev-machine-ip>:8000/fcos-qbt-jelly.ign \
-  --insecure-ignition
-
-# With password (use fcos-qbt-jelly-final.ign):
-sudo coreos-installer install /dev/sdX \
-  --ignition-url http://<dev-machine-ip>:8000/fcos-qbt-jelly-final.ign \
   --insecure-ignition
 
 sudo reboot

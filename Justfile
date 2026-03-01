@@ -4,23 +4,19 @@
 # Prerequisites: podman, python3, firewall-cmd, coreos-installer
 #
 # Usage:
-#   just                           # transpile + validate
-#   just serve                     # transpile + validate + serve .ign in background
-#   just stop                      # stop the background server and close firewall port
-#   just set-password <password>   # generate combined .ign with core user password set
-#   just write-iso /dev/sdX        # download latest FCOS live ISO and write to USB
-#   just vm-install                # iterate on ignition config using a local libvirt VM
-#   just vm-clean                  # remove cached QCOW2 base image
-#   just clean                     # remove generated .ign file and server pid file
+#   just                      # transpile + validate
+#   just serve                # transpile + validate + serve .ign in background
+#   just stop                 # stop the background server and close firewall port
+#   just write-iso /dev/sdX   # download latest FCOS live ISO and write to USB
+#   just vm-install           # iterate on ignition config using a local libvirt VM
+#   just vm-clean             # remove cached QCOW2 base image
+#   just clean                # remove generated .ign file and server pid file
 # ============================================================
 
-bu_file       := "fcos-qbt-jelly.bu"
-ign_file      := "fcos-qbt-jelly.ign"
-password_bu   := "fcos-qbt-jelly-password.bu"
-password_ign  := "fcos-qbt-jelly-password.ign"
-final_ign     := "fcos-qbt-jelly-final.ign"
-http_port     := "8000"
-pid_file      := ".server.pid"
+bu_file  := "fcos-qbt-jelly.bu"
+ign_file := "fcos-qbt-jelly.ign"
+http_port := "8000"
+pid_file  := ".server.pid"
 
 butane   := "podman run --interactive --rm quay.io/coreos/butane:release"
 validate := "podman run --pull=always --rm --interactive quay.io/coreos/ignition-validate:release"
@@ -171,26 +167,6 @@ write-iso disk:
 
     echo ""
     echo ">>> Done. You can now boot the target system from ${DISK}."
-
-# Generate a combined Ignition config that sets a password for the core user.
-# The password is hashed with yescrypt and merged with the main Ignition config.
-# Output: fcos-qbt-jelly-final.ign (gitignored; safe to serve to coreos-installer)
-# Usage: just set-password <plaintext-password>
-set-password password: validate
-    #!/usr/bin/env bash
-    set -euo pipefail
-
-    HASH=$(printf '%s' "{{password}}" | podman run --interactive --rm quay.io/coreos/mkpasswd --method=yescrypt --stdin)
-
-    printf 'variant: fcos\nversion: 1.6.0\npasswd:\n  users:\n    - name: core\n      password_hash: %s\n' "${HASH}" > {{password_bu}}
-
-    echo ">>> Transpiling {{password_bu}} -> {{password_ign}}"
-    {{butane}} --pretty --strict < {{password_bu}} > {{password_ign}}
-
-    echo ">>> Merging {{ign_file}} + {{password_ign}} -> {{final_ign}}"
-    jq -s '.[0] * .[1]' {{ign_file}} {{password_ign}} > {{final_ign}}
-
-    echo ">>> Done. Serve {{final_ign}} to coreos-installer."
 
 # Boot a local libvirt VM with the generated Ignition config for iterative testing.
 #
