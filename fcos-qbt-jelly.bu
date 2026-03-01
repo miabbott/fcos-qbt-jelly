@@ -20,7 +20,6 @@ passwd:
     - name: core
       groups:
         - wheel
-        - nordvpn
       ssh_authorized_keys:
         - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIMOuo7lOZH5bi6yPYN2xVYbzq+334ouzWfFBi7XB7DFf miabbott@meatwad
         - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIA3VMaQAVZOb1UIqA6oIPDoQuzoKUQksIKVFDt88YEvZ miabbott@infidelicious
@@ -202,6 +201,7 @@ systemd:
         ExecStart=/usr/lib/systemd/systemd-sysupdate update --component nordvpn
         ExecStart=/bin/systemctl restart systemd-sysext.service
         ExecStart=/usr/sbin/groupadd --system --force nordvpn
+        ExecStart=/usr/sbin/usermod -aG nordvpn core
         ExecStart=/bin/cp -a /usr/share/nordvpn /var/lib/
         ExecStart=/bin/restorecon -RFv /var/lib/nordvpn
         ExecStart=/bin/systemctl enable --now nordvpnd.socket nordvpnd.service
