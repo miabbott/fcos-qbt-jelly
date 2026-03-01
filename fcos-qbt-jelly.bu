@@ -265,6 +265,7 @@ systemd:
         [Service]
         Type=oneshot
         RemainAfterExit=yes
+        Environment=HOME=/root
         ExecStart=/usr/sbin/groupadd --system --force nordvpn
         ExecStart=/usr/sbin/usermod -aG nordvpn core
         ExecStart=/bin/cp -a /usr/share/nordvpn /var/lib/
