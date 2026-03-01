@@ -271,6 +271,8 @@ systemd:
         ExecStart=/bin/restorecon -RFv /var/lib/nordvpn
         ExecStart=/sbin/ldconfig
         ExecStart=/bin/systemctl enable --now nordvpnd.socket nordvpnd.service
+        ExecStart=/bin/sh -c 'for i in $(seq 15); do /usr/bin/nordvpn set lan-discovery enabled && break || sleep 2; done'
+        ExecStart=/usr/bin/nordvpn allowlist add port 22
         ExecStart=/bin/touch /var/lib/%N.stamp
 
         [Install]
