@@ -9,6 +9,7 @@
 #   just stop                 # stop the background server and close firewall port
 #   just write-iso /dev/sdX   # download latest FCOS live ISO and write to USB
 #   just vm-install           # iterate on ignition config using a local libvirt VM
+#   just vm-clean             # remove cached QCOW2 base image
 #   just clean                # remove generated .ign file and server pid file
 # ============================================================
 
@@ -274,6 +275,12 @@ vm-install: validate
     echo ""
 
     virsh console "${VM_NAME}"
+
+# Remove the cached QCOW2 base image used by vm-install
+vm-clean:
+    @echo ">>> Removing {{vm_base_image}}"
+    rm -f {{vm_base_image}}
+    @echo ">>> vm-clean OK"
 
 # Remove generated Ignition JSON and server pid file
 clean:
