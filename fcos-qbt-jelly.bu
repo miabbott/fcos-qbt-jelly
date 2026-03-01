@@ -179,6 +179,10 @@ storage:
     # Web UI: http://<host>:8080
     # Default credentials are printed in container logs on first
     # boot; change the password immediately via the web UI.
+    #
+    # NetworkMode=host gives the container direct access to all
+    # host interfaces, including the nordlynx interface created
+    # by NordVPN.  PublishPort is not used with host networking.
     # ----------------------------------------------------------
     - path: /etc/containers/systemd/qbittorrent.container
       mode: 0644
@@ -186,13 +190,16 @@ storage:
         inline: |
           [Unit]
           Description=qBittorrent Torrent Client
-          Wants=network-online.target
-          After=network-online.target
+          Wants=network-online.target nordvpn-sysext-install.service
+          After=network-online.target nordvpn-sysext-install.service
+          BindsTo=sys-subsystem-net-devices-nordlynx.device
+          After=sys-subsystem-net-devices-nordlynx.device
 
           [Container]
           ContainerName=qbittorrent
           Image=lscr.io/linuxserver/qbittorrent:latest
           AutoUpdate=registry
+          NetworkMode=host
           Environment=PUID=1000
           Environment=PGID=1000
           Environment=TZ=America/New_York
@@ -200,9 +207,6 @@ storage:
           Environment=TORRENTING_PORT=6881
           Volume=/var/lib/qbittorrent/config:/config:Z
           Volume=/var/mnt/downloads:/downloads:Z
-          PublishPort=8080:8080
-          PublishPort=6881:6881
-          PublishPort=6881:6881/udp
 
           [Service]
           Restart=always
