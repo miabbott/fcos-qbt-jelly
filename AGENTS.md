@@ -21,8 +21,19 @@ a system as a BitTorrent client and Jellyfin media server connected via NordVPN.
   - Downloads land in `/var/mnt/downloads`
   - Initial admin password is printed to container logs on first boot
 - **NordVPN** installed as a systemd sysext via `extensions.fcos.fr`, not rpm-ostree
-  - First-boot service: `nordvpn-sysext-install.service`
-  - Weekly auto-update: `nordvpn-sysext-update.timer`
+  - The versioned `.raw` image is downloaded by Ignition at provision time and placed at
+    `/var/lib/extensions.d/nordvpn-<version>.raw`; a stable symlink at
+    `/var/lib/extensions/nordvpn.raw` points to it
+  - `systemd-sysext.service` is enabled so the sysext is merged into `/usr` on every boot
+  - First-boot service `nordvpn-sysext-install.service` handles post-merge setup only
+    (nordvpn group, data files, enabling nordvpnd); it does **not** call `systemd-sysupdate`,
+    avoiding a known first-boot SELinux denial caused by the incomplete `systemd-importd`
+    policy on FCOS (upstream: fedora-selinux/selinux-policy#2622)
+  - Weekly auto-update: `nordvpn-sysext-update.timer` → `nordvpn-sysext-update.service`
+    calls `systemd-sysupdate` (works fine on a running system where the SELinux constraint
+    does not apply)
+  - When NordVPN releases a new version, update the versioned filename in the `storage.links`
+    and `storage.files` sections of the `.bu` file and regenerate
   - After first boot, authenticate with `nordvpn login` then `nordvpn connect`
 - **Zincati** OS update reboots restricted to Saturday/Sunday 02:00–03:30
 - **podman-auto-update.timer** enabled for daily container image refresh
@@ -38,6 +49,11 @@ a system as a BitTorrent client and Jellyfin media server connected via NordVPN.
   containers will receive permission denied errors at runtime.
 - `fcos-qbt-jelly.ign` is a generated file. Never commit edits to it directly;
   always edit the `.bu` source and regenerate.
+- Do **not** call `systemd-sysupdate` from a first-boot systemd service on FCOS.
+  The SELinux policy for `systemd-importd` (which `systemd-sysupdate` uses internally)
+  is incomplete and causes a `Permission denied` failure when writing to
+  `/var/lib/extensions.d/` at boot time.  Use Ignition `storage.files` with a `source:`
+  URL to place sysext images at provision time instead.
 
 ## Workflow
 

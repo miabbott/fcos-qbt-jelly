@@ -56,12 +56,39 @@ storage:
     - path: /etc/sysupdate.nordvpn.d
       mode: 0755
 
+  links:
+    # ----------------------------------------------------------
+    # NordVPN sysext: stable name symlink consumed by
+    # systemd-sysext.  Points to the versioned image placed by
+    # Ignition below.  The weekly update timer will repoint this
+    # symlink when a newer image is downloaded.
+    # ----------------------------------------------------------
+    - path: /var/lib/extensions/nordvpn.raw
+      target: /var/lib/extensions.d/nordvpn-4.4.0-1-43-x86-64.raw
+
   files:
+    # ----------------------------------------------------------
+    # NordVPN sysext: versioned image downloaded by Ignition at
+    # provision time.  Using Ignition to fetch the image avoids
+    # running systemd-sysupdate as a first-boot service, which
+    # fails on FCOS because the SELinux policy for systemd-importd
+    # is incomplete (extensions.fcos.fr upstream issue).
+    # The weekly nordvpn-sysext-update.service timer uses
+    # systemd-sysupdate to replace this file once the system is
+    # fully booted, at which point the SELinux constraint does not
+    # apply.
+    # ----------------------------------------------------------
+    - path: /var/lib/extensions.d/nordvpn-4.4.0-1-43-x86-64.raw
+      mode: 0644
+      contents:
+        source: https://extensions.fcos.fr/community/nordvpn/nordvpn-4.4.0-1-43-x86-64.raw
+
     # ----------------------------------------------------------
     # NordVPN sysext: sysupdate configuration
     # Fetched from https://extensions.fcos.fr/community/nordvpn.conf
     # systemd-sysupdate uses this to download and verify the
     # correct sysext image for the running OS version.
+    # Used by the weekly nordvpn-sysext-update.timer.
     # ----------------------------------------------------------
     - path: /etc/sysupdate.nordvpn.d/nordvpn.conf
       mode: 0644
@@ -172,15 +199,24 @@ systemd:
       enabled: true
 
     # ----------------------------------------------------------
+    # Enable systemd-sysext.service so the NordVPN sysext image
+    # placed by Ignition is merged into /usr on every boot.
+    # ----------------------------------------------------------
+    - name: systemd-sysext.service
+      enabled: true
+
+    # ----------------------------------------------------------
     # NordVPN sysext: first-boot provisioning service
     #
-    # This oneshot service runs on first boot to:
-    #   1. Set SELinux contexts on the sysext directories
-    #   2. Download the NordVPN sysext image via systemd-sysupdate
-    #   3. Activate the sysext via systemd-sysext
-    #   4. Create the nordvpn system group
-    #   5. Copy NordVPN data files to /var/lib/nordvpn
-    #   6. Enable and start the nordvpnd socket and service
+    # The sysext image is already in place via Ignition, so this
+    # service only needs to:
+    #   1. Create the nordvpn system group
+    #   2. Copy NordVPN data files to /var/lib/nordvpn
+    #   3. Enable and start the nordvpnd socket and service
+    #
+    # No network access or systemd-sysupdate call is needed here;
+    # that avoids the first-boot SELinux denial caused by the
+    # incomplete systemd-importd policy on FCOS.
     #
     # The stamp file prevents re-execution on subsequent boots.
     # After provisioning, log in with: nordvpn login
@@ -190,16 +226,13 @@ systemd:
       contents: |
         [Unit]
         Description=Install NordVPN sysext on first boot
-        Wants=network-online.target systemd-sysext.service
-        After=network-online.target systemd-sysext.service
+        After=systemd-sysext.service
+        Requires=systemd-sysext.service
         ConditionPathExists=!/var/lib/%N.stamp
 
         [Service]
         Type=oneshot
         RemainAfterExit=yes
-        ExecStart=/bin/restorecon -RFv /var/lib/extensions /var/lib/extensions.d /etc/sysupdate.nordvpn.d
-        ExecStart=/usr/lib/systemd/systemd-sysupdate update --component nordvpn
-        ExecStart=/bin/systemctl restart systemd-sysext.service
         ExecStart=/usr/sbin/groupadd --system --force nordvpn
         ExecStart=/usr/sbin/usermod -aG nordvpn core
         ExecStart=/bin/cp -a /usr/share/nordvpn /var/lib/
