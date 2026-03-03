@@ -38,13 +38,7 @@ storage:
     - path: /var/lib/qbittorrent/config
       mode: 0755
 
-    # Shared media and download directories
-    - path: /var/mnt/media/movies
-      mode: 0755
-    - path: /var/mnt/media/tv
-      mode: 0755
-    - path: /var/mnt/media/music
-      mode: 0755
+    # Shared download directory
     - path: /var/mnt/downloads
       mode: 0755
 
@@ -165,9 +159,7 @@ storage:
           Environment=TZ=America/New_York
           Volume=/var/lib/jellyfin/config:/config:Z
           Volume=/var/lib/jellyfin/cache:/cache:Z
-          Volume=/var/mnt/media/movies:/movies:ro,Z
-          Volume=/var/mnt/media/tv:/tv:ro,Z
-          Volume=/var/mnt/media/music:/music:ro,Z
+          Volume=/var/mnt/downloads:/downloads:ro,Z
           PublishPort=8096:8096
           PublishPort=8920:8920
           PublishPort=7359:7359/udp
