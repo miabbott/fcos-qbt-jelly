@@ -152,6 +152,7 @@ storage:
 
           [Container]
           ContainerName=jellyfin
+          HostName=jelly-gmktec
           Image=lscr.io/linuxserver/jellyfin:latest
           AutoUpdate=registry
           Environment=PUID=1000
