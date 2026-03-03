@@ -188,7 +188,7 @@ storage:
     # Default credentials are printed in container logs on first
     # boot; change the password immediately via the web UI.
     #
-    # NetworkMode=host gives the container direct access to all
+    # Network=host gives the container direct access to all
     # host interfaces, including the nordlynx interface created
     # by NordVPN.  PublishPort is not used with host networking.
     # ----------------------------------------------------------
@@ -207,7 +207,7 @@ storage:
           ContainerName=qbittorrent
           Image=lscr.io/linuxserver/qbittorrent:latest
           AutoUpdate=registry
-          NetworkMode=host
+          Network=host
           Environment=PUID=1000
           Environment=PGID=1000
           Environment=TZ=America/New_York
