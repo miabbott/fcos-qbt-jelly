@@ -1,5 +1,5 @@
-fcos-qbt-jelly.ign
-.server.pid
-fedora-coreos-*.iso
-fedora-coreos-*.sig
+*.ign
+*.pid
+*.iso
+*.sig
 *.qcow2
