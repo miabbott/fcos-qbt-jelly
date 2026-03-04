@@ -160,13 +160,13 @@ storage:
           Environment=TZ=America/New_York
           Volume=/var/lib/jellyfin/config:/config:Z
           Volume=/var/lib/jellyfin/cache:/cache:Z
-          Volume=/var/mnt/downloads:/downloads:ro,Z
+          Volume=/var/mnt/downloads:/downloads:ro,z
           PublishPort=8096:8096
           PublishPort=8920:8920
           PublishPort=7359:7359/udp
           PublishPort=1900:1900/udp
-          # Intel Quick Sync hardware transcoding (uncomment if desired)
-          #AddDevice=/dev/dri/renderD128
+          # Intel Quick Sync hardware transcoding
+          AddDevice=/dev/dri/renderD128
 
           [Service]
           Restart=always
@@ -207,7 +207,7 @@ storage:
           Environment=WEBUI_PORT=8080
           Environment=TORRENTING_PORT=6881
           Volume=/var/lib/qbittorrent/config:/config:Z
-          Volume=/var/mnt/downloads:/downloads:Z
+          Volume=/var/mnt/downloads:/downloads:z
 
           [Service]
           Restart=always
