@@ -122,6 +122,20 @@ storage:
         source: https://extensions.fcos.fr/community/nordvpn.conf
 
     # ----------------------------------------------------------
+    # NetworkManager: disable IPv6 on all ethernet connections
+    # The host kernel disables IPv6, so NM repeatedly fails to
+    # configure link-local addresses and floods the journal.
+    # This conf.d snippet suppresses that noise by telling NM not
+    # to attempt IPv6 on ethernet interfaces at all.
+    # ----------------------------------------------------------
+    - path: /etc/NetworkManager/conf.d/10-disable-ipv6.conf
+      mode: 0644
+      contents:
+        inline: |
+          [connection-ethernet-defaults]
+          ipv6.method=disabled
+
+    # ----------------------------------------------------------
     # Zincati: restrict automatic reboots to a weekend window
     # ----------------------------------------------------------
     - path: /etc/zincati/config.d/55-updates-strategy.toml
