@@ -272,6 +272,7 @@ systemd:
         ExecStart=/bin/sh -c 'for i in $(seq 15); do /usr/bin/nordvpn set lan-discovery enabled && break || sleep 2; done'
         ExecStart=/usr/bin/nordvpn set killswitch enabled
         ExecStart=/usr/bin/nordvpn allowlist add port 22
+        ExecStart=/usr/bin/nordvpn allowlist add port 6881
         ExecStart=/bin/touch /var/lib/%N.stamp
 
         [Install]
