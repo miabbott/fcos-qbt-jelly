@@ -38,8 +38,8 @@ storage:
     - path: /var/lib/qbittorrent/config
       mode: 0755
 
-    # Shared download directory
-    - path: /var/mnt/downloads
+    # External USB media drive mount point
+    - path: /var/mnt/media
       mode: 0755
 
     # sysext infrastructure directories
@@ -174,7 +174,7 @@ storage:
           Environment=TZ=America/New_York
           Volume=/var/lib/jellyfin/config:/config:Z
           Volume=/var/lib/jellyfin/cache:/cache:Z
-          Volume=/var/mnt/downloads:/downloads:ro,z
+          Volume=/var/mnt/media:/media:ro,z
           PublishPort=8096:8096
           PublishPort=8920:8920
           PublishPort=7359:7359/udp
@@ -221,7 +221,7 @@ storage:
           Environment=WEBUI_PORT=8080
           Environment=TORRENTING_PORT=6881
           Volume=/var/lib/qbittorrent/config:/config:Z
-          Volume=/var/mnt/downloads:/downloads:z
+          Volume=/var/mnt/media:/media:z
 
           [Service]
           Restart=always
@@ -232,6 +232,29 @@ storage:
 
 systemd:
   units:
+    # ----------------------------------------------------------
+    # Mount external USB media drive (XFS, label "varsrv") at
+    # /var/mnt/media.  Both Jellyfin (read-only) and qBittorrent
+    # (read-write) access this path inside their containers.
+    # The drive is identified by filesystem label so the mount
+    # is stable regardless of which /dev/sdX it enumerates as.
+    # ----------------------------------------------------------
+    - name: var-mnt-media.mount
+      enabled: true
+      contents: |
+        [Unit]
+        Description=Mount external USB disk at /var/mnt/media
+        Before=local-fs.target
+
+        [Mount]
+        What=/dev/disk/by-label/varsrv
+        Where=/var/mnt/media
+        Type=xfs
+        Options=defaults
+
+        [Install]
+        WantedBy=multi-user.target
+
     # ----------------------------------------------------------
     # Enable daily container image auto-update checks.
     # Containers with AutoUpdate=registry in their Quadlet unit
