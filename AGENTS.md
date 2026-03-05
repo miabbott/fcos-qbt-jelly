@@ -14,11 +14,11 @@ a system as a BitTorrent client and Jellyfin media server connected via NordVPN.
 
 - **Jellyfin** media server via Podman Quadlet (`/etc/containers/systemd/jellyfin.container`)
   - Web UI on port 8096; HTTPS on 8920
-  - Media volumes: `/var/mnt/media/{movies,tv,music}` (read-only mounts into container)
+  - Media volume: `/var/mnt/media` mounted read-only as `/media` inside the container
   - Intel Quick Sync transcoding available — uncomment `AddDevice=/dev/dri/renderD128`
 - **qBittorrent** torrent client via Podman Quadlet (`/etc/containers/systemd/qbittorrent.container`)
   - Web UI on port 8080; torrenting on port 6881 TCP/UDP
-  - Downloads land in `/var/mnt/downloads`
+  - Downloads land in `/var/mnt/media` (external USB drive, XFS label `varsrv`)
   - Initial admin password is printed to container logs on first boot
 - **NordVPN** installed as a systemd sysext via `extensions.fcos.fr`, not rpm-ostree
   - The versioned `.raw` image is downloaded by Ignition at provision time and placed at
