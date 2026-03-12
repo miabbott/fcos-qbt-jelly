@@ -3,3 +3,4 @@
 *.iso
 *.sig
 *.qcow2
+secrets/

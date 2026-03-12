@@ -18,7 +18,7 @@ ign_file := "fcos-qbt-jelly.ign"
 http_port := "8000"
 pid_file  := ".server.pid"
 
-butane   := "podman run --interactive --rm quay.io/coreos/butane:release"
+butane   := "podman run --interactive --rm -v .:/work:ro,z -w /work quay.io/coreos/butane:release"
 validate := "podman run --pull=always --rm --interactive quay.io/coreos/ignition-validate:release"
 
 # VM iteration settings
@@ -32,7 +32,7 @@ default: validate
 # Transpile the Butane YAML to Ignition JSON
 transpile:
     @echo ">>> Transpiling {{bu_file}} -> {{ign_file}}"
-    {{butane}} --pretty --strict < {{bu_file}} > {{ign_file}}
+    {{butane}} --pretty --strict --files-dir /work {{bu_file}} > {{ign_file}}
     @echo ">>> Transpile OK"
 
 # Validate the generated Ignition JSON
