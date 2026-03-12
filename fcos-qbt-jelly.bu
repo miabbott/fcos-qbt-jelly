@@ -348,6 +348,7 @@ systemd:
         [Service]
         Type=oneshot
         RemainAfterExit=yes
+        Environment=HOME=/root
         ExecStart=/bin/sh -c 'for i in $(seq 15); do /usr/bin/nordvpn login --token $(cat /var/lib/nordvpn-token) && break || sleep 2; done'
         ExecStart=/bin/sh -c 'for i in $(seq 15); do /usr/bin/nordvpn connect Switzerland && break || sleep 2; done'
 
