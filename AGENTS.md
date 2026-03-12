@@ -38,6 +38,19 @@ a system as a BitTorrent client and Jellyfin media server connected via NordVPN.
 - **Zincati** OS update reboots restricted to Saturday/Sunday 02:00–03:30
 - **podman-auto-update.timer** enabled for daily container image refresh
 
+## Secrets
+
+The `secrets/` directory is gitignored and must be populated manually before
+transpiling. Currently required:
+
+- `secrets/nordvpn-token` — NordVPN access token for automatic login on boot.
+  Generate one at account.nordvpn.com → Security → Access Tokens (set to
+  never expire). The token is embedded into the Ignition config at transpile
+  time via Butane's `--files-dir` mechanism and written to
+  `/var/lib/nordvpn-token` (mode 0600) on the provisioned system.
+
+If this file is missing, `just` will fail at the transpile step.
+
 ## Key Constraints
 
 - The Butane spec version is `1.6.0` (Ignition spec `3.5.0`). The `quay.io/coreos/butane:release`

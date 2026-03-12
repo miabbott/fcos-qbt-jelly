@@ -17,6 +17,7 @@ qBittorrent and Jellyfin behind NordVPN.
 - `python3`
 - [`just`](https://github.com/casey/just)
 - `firewall-cmd`
+- `secrets/nordvpn-token` — NordVPN access token (gitignored; see below)
 
 ## Usage
 
@@ -68,12 +69,23 @@ sudo reboot
 `just serve` prints the exact `coreos-installer` command with your local IP filled in.
 Run `just stop` on your dev machine once the installation is complete.
 
-## Post-Install
+## Secrets
+
+Before transpiling, create the `secrets/` directory and populate it:
 
 ```bash
-nordvpn login
-nordvpn connect
+mkdir -p secrets
+echo -n 'your-token-here' > secrets/nordvpn-token
 ```
+
+Generate a token at account.nordvpn.com → Security → Access Tokens. Set it
+to never expire. The token is embedded into the Ignition config at transpile
+time and is never committed to git.
+
+## Post-Install
+
+NordVPN logs in and connects automatically on every boot via the embedded
+token. No manual intervention is required after first boot.
 
 ## License
 
