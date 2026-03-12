@@ -154,6 +154,10 @@ storage:
     # Jellyfin Quadlet container unit
     # Web UI: http://<host>:8096
     # Hardware transcoding: Intel Quick Sync via /dev/dri
+    #
+    # Network=host gives the container direct access to all host
+    # interfaces, consistent with qBittorrent.  PublishPort is not
+    # used with host networking.
     # ----------------------------------------------------------
     - path: /etc/containers/systemd/jellyfin.container
       mode: 0644
@@ -166,19 +170,15 @@ storage:
 
           [Container]
           ContainerName=jellyfin
-          HostName=jelly-gmktec
           Image=lscr.io/linuxserver/jellyfin:latest
           AutoUpdate=registry
+          Network=host
           Environment=PUID=1000
           Environment=PGID=1000
           Environment=TZ=America/New_York
           Volume=/var/lib/jellyfin/config:/config:Z
           Volume=/var/lib/jellyfin/cache:/cache:Z
           Volume=/var/mnt/media:/media:ro,z
-          PublishPort=8096:8096
-          PublishPort=8920:8920
-          PublishPort=7359:7359/udp
-          PublishPort=1900:1900/udp
           # Intel Quick Sync hardware transcoding
           AddDevice=/dev/dri/renderD128
 
