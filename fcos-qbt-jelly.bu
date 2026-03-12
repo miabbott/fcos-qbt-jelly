@@ -122,6 +122,17 @@ storage:
         source: https://extensions.fcos.fr/community/nordvpn.conf
 
     # ----------------------------------------------------------
+    # NordVPN access token for automatic login on every boot.
+    # The token is embedded at transpile time from secrets/nordvpn-token
+    # (gitignored) via Butane's --files-dir mechanism.  It is stored
+    # at mode 0600 so only root can read it.
+    # ----------------------------------------------------------
+    - path: /var/lib/nordvpn-token
+      mode: 0600
+      contents:
+        local: secrets/nordvpn-token
+
+    # ----------------------------------------------------------
     # NetworkManager: disable IPv6 on all ethernet connections
     # The host kernel disables IPv6, so NM repeatedly fails to
     # configure link-local addresses and floods the journal.
@@ -311,6 +322,34 @@ systemd:
         ExecStart=/usr/bin/nordvpn allowlist add port 22
         ExecStart=/usr/bin/nordvpn allowlist add port 6881
         ExecStart=/bin/touch /var/lib/%N.stamp
+
+        [Install]
+        WantedBy=multi-user.target
+
+    # ----------------------------------------------------------
+    # NordVPN autoconnect service
+    #
+    # Runs on every boot after nordvpnd is ready.  Logs in using
+    # the token embedded by Ignition and connects to the VPN.
+    # nordvpn login --token is idempotent — safe to call even if
+    # already authenticated.  The connect step retries up to 15
+    # times to handle cases where nordvpnd needs a moment to reach
+    # the NordVPN API after network comes up.
+    # ----------------------------------------------------------
+    - name: nordvpn-autoconnect.service
+      enabled: true
+      contents: |
+        [Unit]
+        Description=NordVPN automatic login and connect
+        After=network-online.target nordvpnd.service nordvpn-sysext-install.service
+        Wants=network-online.target
+        Requires=nordvpnd.service
+
+        [Service]
+        Type=oneshot
+        RemainAfterExit=yes
+        ExecStart=/bin/sh -c 'for i in $(seq 15); do /usr/bin/nordvpn login --token $(cat /var/lib/nordvpn-token) && break || sleep 2; done'
+        ExecStart=/bin/sh -c 'for i in $(seq 15); do /usr/bin/nordvpn connect && break || sleep 2; done'
 
         [Install]
         WantedBy=multi-user.target
