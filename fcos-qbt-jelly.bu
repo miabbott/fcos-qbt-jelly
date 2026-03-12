@@ -349,7 +349,7 @@ systemd:
         Type=oneshot
         RemainAfterExit=yes
         ExecStart=/bin/sh -c 'for i in $(seq 15); do /usr/bin/nordvpn login --token $(cat /var/lib/nordvpn-token) && break || sleep 2; done'
-        ExecStart=/bin/sh -c 'for i in $(seq 15); do /usr/bin/nordvpn connect && break || sleep 2; done'
+        ExecStart=/bin/sh -c 'for i in $(seq 15); do /usr/bin/nordvpn connect Switzerland && break || sleep 2; done'
 
         [Install]
         WantedBy=multi-user.target
