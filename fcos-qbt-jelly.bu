@@ -139,12 +139,16 @@ storage:
               auto_https off
           }
 
-          jellyfin.home {
-              reverse_proxy localhost:8096
-          }
+          :80 {
+              @jellyfin host jellyfin.home
+              handle @jellyfin {
+                  reverse_proxy localhost:8096
+              }
 
-          qbt.home {
-              reverse_proxy localhost:8080
+              @qbt host qbt.home
+              handle @qbt {
+                  reverse_proxy localhost:8080
+              }
           }
 
     # ----------------------------------------------------------
@@ -316,27 +320,6 @@ systemd:
         Where=/var/mnt/media
         Type=xfs
         Options=defaults
-
-        [Install]
-        WantedBy=multi-user.target
-
-    # ----------------------------------------------------------
-    # Open firewall port 80 for Caddy reverse proxy
-    # ----------------------------------------------------------
-    - name: caddy-firewall.service
-      enabled: true
-      contents: |
-        [Unit]
-        Description=Open firewall port 80 for Caddy
-        Before=caddy.service
-        After=firewalld.service
-        Requires=firewalld.service
-
-        [Service]
-        Type=oneshot
-        RemainAfterExit=yes
-        ExecStart=/usr/bin/firewall-cmd --zone=public --add-port=80/tcp --permanent
-        ExecStart=/usr/bin/firewall-cmd --reload
 
         [Install]
         WantedBy=multi-user.target
