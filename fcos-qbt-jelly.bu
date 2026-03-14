@@ -42,6 +42,10 @@ storage:
     - path: /var/mnt/media
       mode: 0755
 
+    # Caddy reverse proxy config directory
+    - path: /var/mnt/caddy
+      mode: 0755
+
     # sysext infrastructure directories
     - path: /var/lib/extensions
       mode: 0755
@@ -120,6 +124,56 @@ storage:
       mode: 0644
       contents:
         source: https://extensions.fcos.fr/community/nordvpn.conf
+
+    # ----------------------------------------------------------
+    # Caddy reverse proxy configuration
+    # Routes jellyfin.home -> localhost:8096
+    #       qbt.home      -> localhost:8080
+    # auto_https off disables TLS — HTTP only on the LAN.
+    # ----------------------------------------------------------
+    - path: /var/mnt/caddy/Caddyfile
+      mode: 0644
+      contents:
+        inline: |
+          {
+              auto_https off
+          }
+
+          jellyfin.home {
+              reverse_proxy localhost:8096
+          }
+
+          qbt.home {
+              reverse_proxy localhost:8080
+          }
+
+    # ----------------------------------------------------------
+    # Caddy Quadlet container unit
+    # Listens on port 80; routes by Host header to backend
+    # containers, both of which use host networking.
+    # ----------------------------------------------------------
+    - path: /etc/containers/systemd/caddy.container
+      mode: 0644
+      contents:
+        inline: |
+          [Unit]
+          Description=Caddy Reverse Proxy
+          Wants=network-online.target
+          After=network-online.target
+
+          [Container]
+          ContainerName=caddy
+          Image=docker.io/library/caddy:latest
+          AutoUpdate=registry
+          Network=host
+          Volume=/var/mnt/caddy/Caddyfile:/etc/caddy/Caddyfile:Z
+
+          [Service]
+          Restart=always
+          TimeoutStartSec=90
+
+          [Install]
+          WantedBy=multi-user.target
 
     # ----------------------------------------------------------
     # NordVPN access token for automatic login on every boot.
@@ -262,6 +316,27 @@ systemd:
         Where=/var/mnt/media
         Type=xfs
         Options=defaults
+
+        [Install]
+        WantedBy=multi-user.target
+
+    # ----------------------------------------------------------
+    # Open firewall port 80 for Caddy reverse proxy
+    # ----------------------------------------------------------
+    - name: caddy-firewall.service
+      enabled: true
+      contents: |
+        [Unit]
+        Description=Open firewall port 80 for Caddy
+        Before=caddy.service
+        After=firewalld.service
+        Requires=firewalld.service
+
+        [Service]
+        Type=oneshot
+        RemainAfterExit=yes
+        ExecStart=/usr/bin/firewall-cmd --zone=public --add-port=80/tcp --permanent
+        ExecStart=/usr/bin/firewall-cmd --reload
 
         [Install]
         WantedBy=multi-user.target
