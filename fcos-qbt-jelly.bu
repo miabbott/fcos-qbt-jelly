@@ -418,6 +418,41 @@ systemd:
     # Runs weekly to keep the NordVPN sysext current without
     # requiring manual intervention or a full OS rebase.
     # ----------------------------------------------------------
+    # ----------------------------------------------------------
+    # NordVPN reconnect watchdog
+    #
+    # nordvpn-autoconnect.service is Type=oneshot and only runs at
+    # boot, so if the tunnel drops later (network blip, server
+    # issue, daemon reconnect giving up) nothing brings it back.
+    # This timer-driven check reconnects if `nordvpn status` does
+    # not report "Connected".  15 minute cadence trades a bit of
+    # downtime for minimal churn.
+    # ----------------------------------------------------------
+    - name: nordvpn-watchdog.service
+      contents: |
+        [Unit]
+        Description=NordVPN reconnect watchdog
+        After=nordvpn-autoconnect.service
+        Requires=nordvpnd.service
+
+        [Service]
+        Type=oneshot
+        Environment=HOME=/root
+        ExecStart=/bin/sh -c '/usr/bin/nordvpn status | grep -q "Status: Connected" || /usr/bin/nordvpn connect Switzerland'
+
+    - name: nordvpn-watchdog.timer
+      enabled: true
+      contents: |
+        [Unit]
+        Description=Periodic NordVPN reconnect check
+
+        [Timer]
+        OnBootSec=15min
+        OnUnitActiveSec=15min
+
+        [Install]
+        WantedBy=timers.target
+
     - name: nordvpn-sysext-update.service
       contents: |
         [Unit]
