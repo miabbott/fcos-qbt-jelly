@@ -5,10 +5,10 @@ a system as a BitTorrent client and Jellyfin media server connected via NordVPN.
 
 ## Repository Structure
 
-- `fcos-qbt-jelly.bu` — Butane YAML source (edit this, never the `.ign` file)
-- `fcos-qbt-jelly.ign` — generated Ignition JSON (do not edit; regenerate via `just`)
+- `fcos-qbt-jelly.bu` — Butane YAML source and the sole source of truth (edit this, never the `.ign` file)
+- `fcos-qbt-jelly.ign` — generated Ignition JSON; **gitignored** and regenerated via `just transpile`. Do not expect to see it in `git status` after a Butane edit, and do not commit it if it appears
 - `Justfile` — automation for transpile, validate, serve, stop, write-iso, vm-install, vm-clean, and clean workflows
-- `.gitignore` — excludes `fcos-qbt-jelly.ign`, `.server.pid`, and downloaded ISO files
+- `.gitignore` — excludes `*.ign`, `*.pid`, `*.iso`, `*.sig`, `*.qcow2`, and the `secrets/` directory
 
 ## What This Config Provisions
 
@@ -34,7 +34,12 @@ a system as a BitTorrent client and Jellyfin media server connected via NordVPN.
     does not apply)
   - When NordVPN releases a new version, update the versioned filename in the `storage.links`
     and `storage.files` sections of the `.bu` file and regenerate
-  - After first boot, authenticate with `nordvpn login` then `nordvpn connect`
+  - `nordvpn-autoconnect.service` logs in with the token from `/var/lib/nordvpn-token` and
+    runs `nordvpn connect Switzerland` automatically on every boot — no manual `nordvpn login`
+    or `nordvpn connect` is needed post-install
+  - `nordvpn-watchdog.timer` fires every 15 minutes and reconnects the tunnel if
+    `nordvpn status` does not report `Connected`, covering the case where the
+    `Type=oneshot` autoconnect already ran and the tunnel later drops
 - **Zincati** OS update reboots restricted to Saturday/Sunday 02:00–03:30
 - **podman-auto-update.timer** enabled for daily container image refresh
 
@@ -67,6 +72,20 @@ If this file is missing, `just` will fail at the transpile step.
   is incomplete and causes a `Permission denied` failure when writing to
   `/var/lib/extensions.d/` at boot time.  Use Ignition `storage.files` with a `source:`
   URL to place sysext images at provision time instead.
+- **Do not add `BindsTo=sys-subsystem-net-devices-nordlynx.device` to qbittorrent.**
+  qBittorrent's own configuration binds peer traffic to the `nordlynx` interface, which
+  is the real kill-switch: if the tunnel drops, no torrent traffic leaks. A systemd-level
+  `BindsTo` on the device adds no protection but does propagate stop unconditionally
+  whenever nordvpnd restarts (sysext updates, reconnects), taking the WebUI down with no
+  automatic recovery. Use `Wants=` + `After=` on the device for boot ordering only. This
+  tradeoff is deliberate — re-adding `BindsTo` will re-introduce the availability bug.
+- **`systemctl restart A B C` is one transaction.** When restarting multiple interdependent
+  units from an `ExecStart=` (or anywhere else), split them into separate invocations.
+  systemd assembles a single job graph for the whole command; if any ordering or
+  `Triggers=`/`After=` relationship between the listed units creates an unresolvable
+  set, the whole command exits non-zero with `Job failed`. Pairs of units typically
+  work; three or more is where this usually bites. For oneshot services, this means
+  one `ExecStart=` per `systemctl restart` invocation.
 
 ## Workflow
 
@@ -124,6 +143,48 @@ the system will boot back into the live environment instead of the installed OS.
 `just serve` prints the exact command with the local IP filled in. The
 `--insecure-ignition` flag is required when serving over plain HTTP, which is
 acceptable for local development.
+
+## Debugging Systemd Units
+
+All of the container services in this config are Podman Quadlet units, which
+means the `.container` file in the Butane source is **not** the unit systemd
+executes. The real unit is synthesized at boot by
+`/usr/lib/systemd/system-generators/podman-system-generator` and written to
+`/run/systemd/generator/<name>.service`. When diagnosing "Dependency failed",
+`Requires=`/`Wants=` confusion, or any ordering problem, inspect the generated
+unit on the running host — not the Butane source:
+
+```bash
+cat /run/systemd/generator/<name>.service
+systemctl show <name>.service -p Requires,Wants,BindsTo,After,RequiredBy --no-pager
+```
+
+Do not infer dependency *types* from `systemctl list-dependencies`; that command
+shows the tree but collapses `Requires=` and `Wants=` into the same visual
+representation. The `systemctl show` properties above are authoritative. This
+matters in practice: a Quadlet unit with `Wants=foo.service` behaves very
+differently from one with `Requires=foo.service` when `foo.service` is a
+`Type=oneshot` with `ConditionPathExists=!...` that legitimately skips on
+every boot after the first.
+
+## Verifying Changes on a Running Host
+
+Edits to `fcos-qbt-jelly.bu` only take effect on a fresh install or on a full
+Ignition re-run — there is no in-place "apply" for Butane changes on a running
+CoreOS host. When iterating on a fix for an already-deployed system, the normal
+loop is:
+
+1. Make the corresponding change directly on the host (edit the unit under
+   `/etc/systemd/system/` or `/etc/containers/systemd/`, `systemctl
+   daemon-reload`, restart the affected service) to confirm the fix works
+   end-to-end.
+2. Back-port the same change into `fcos-qbt-jelly.bu`.
+3. `just transpile && just validate` to verify the Butane edit produces a
+   valid Ignition config.
+4. Commit the Butane change.
+
+Do not commit a Butane edit whose effect has only been reasoned about — verify
+on the host first, then write the change into the source of truth.
 
 ## Commit Guidelines
 
