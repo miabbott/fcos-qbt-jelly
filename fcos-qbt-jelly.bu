@@ -463,7 +463,8 @@ systemd:
         [Service]
         Type=oneshot
         ExecStart=/usr/lib/systemd/systemd-sysupdate update --component nordvpn
-        ExecStart=/bin/systemctl restart systemd-sysext.service nordvpnd.socket nordvpnd.service
+        ExecStart=/bin/systemctl restart systemd-sysext.service
+        ExecStart=/bin/systemctl restart nordvpnd.socket nordvpnd.service
 
         [Install]
         WantedBy=multi-user.target
