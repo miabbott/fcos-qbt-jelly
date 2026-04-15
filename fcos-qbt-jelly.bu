@@ -274,8 +274,8 @@ storage:
         inline: |
           [Unit]
           Description=qBittorrent Torrent Client
-          Wants=network-online.target nordvpn-sysext-install.service
-          After=network-online.target nordvpn-sysext-install.service
+          Wants=network-online.target nordvpn-sysext-install.service nordvpn-autoconnect.service
+          After=network-online.target nordvpn-sysext-install.service nordvpn-autoconnect.service
           BindsTo=sys-subsystem-net-devices-nordlynx.device
           After=sys-subsystem-net-devices-nordlynx.device
 
